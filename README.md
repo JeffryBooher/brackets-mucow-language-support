@@ -1,4 +1,4 @@
-# brackets-mucow-language-support
+# brackets mucow language support
 
 Brackets Extension to add mucow syntax highlighting, code hints and attribute completion
 
