@@ -1,0 +1,14 @@
+{     
+    "accesskey":                     { "attribOption": ["1", "2", "3"] },
+    "localization":                  { "attribOption": ["none", "stringTable"] },
+    "isResizable":                   { "attribOption": [], "type": "boolean" },
+    "paramEncoding":                 { "attribOption": ["URIComponent", "spaceToPlus"]},
+    "multiline":                     { "attribOption": [], "type": "boolean" },
+    "defaultIllegalForOutput":       { "attribOption": [], "type": "boolean" },
+    "currentPageOrURL":              { "attribOption": [], "type": "boolean" },
+    "builtIn/name":                  { "attribOption": ["width", "height", "itemUID", "siteUID", "country", "language", "locale"]},
+    "fileRequiredForOutput":         { "attribOption": [], "type": "boolean" },
+    "rgbColor":                      { "attribOption": [], "type": "boolean" },
+    "formatHexColor":                { "attribOption": [], "type": "boolean" },
+    "supportsNoneColor":             { "attribOption": [], "type": "boolean" }
+}
