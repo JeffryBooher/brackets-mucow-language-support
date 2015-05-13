@@ -22,31 +22,31 @@
  */
 
 /*jslint vars: true, plusplus: true, devel: true, nomen: true, regexp: true, indent: 4, maxerr: 50 */
-/*global define, brackets, window, $, Mustache, navigator */
+/*global define, brackets, $, validateXML, CodeMirror */
 
-define(function (require, exports, module) {
+define(function (require, exports) {
     "use strict";
+    
+    // xmllint is a non-module require
+    require("thirdparty/xmllint");    
     
     // Brackets modules
     var AppInit                     = brackets.getModule("utils/AppInit"),
-        PreferencesManager          = brackets.getModule("preferences/PreferencesManager"),
-        ExtensionUtils              = brackets.getModule("utils/ExtensionUtils"),
         LanguageManager             = brackets.getModule("language/LanguageManager"),
         XMLUtils                    = brackets.getModule("language/XMLUtils"),
         TokenUtils                  = brackets.getModule("utils/TokenUtils"),
         CodeHintManager             = brackets.getModule("editor/CodeHintManager"),
-        MucowTags                   = require("text!MucowTags.json"),
+        CodeInspection              = brackets.getModule("language/CodeInspection");
+    
+    var MucowTags                   = require("text!MucowTags.json"),
         MucowAttributes             = require("text!MucowAttributes.json"),
-        cachedAttributes            = {},
-        tags,
+        MucowSchema                 = require("text!mucow.xsd");
+    
+    var MUCOW_LINT                  = "Mucow Grammar";
+    
+    var tags,
         attributes;
 
-
-    // TODO: This may improve matching heuristics
-    var stringMatcherOptions = {
-        preferPrefixMatches: true
-    };
-    
     // Regex to find whitespace.
     var regexWhitespace = /^\s+$/;
 
@@ -99,7 +99,7 @@ define(function (require, exports, module) {
      * the given editor context and, in case implicitChar is non- null,
      * whether it is appropriate to do so.
      */
-    TagHints.prototype.hasHints = function (editor, implicitChar) {
+    TagHints.prototype.hasHints = function (editor) {
         if (editor.getModeForSelection() === "xml") {
             this.editor = editor;
             this.tagInfo = XMLUtils.getTagInfo(this.editor, this.editor.getCursorPos());
@@ -108,7 +108,23 @@ define(function (require, exports, module) {
         }
         return false;
     };
-       
+      
+    /**
+     * Retrieves the current context for tag names
+     * @param {Editor} editor 
+     * A non-null editor object for the active window.
+     *
+     * @return {context} // use context.tagName to determine the parent tag at the cursor
+     * 
+     */
+    TagHints.prototype.getContext = function() {
+        var cm = this.editor._codeMirror,
+            cur = cm.getCursor(),
+            token = cm.getTokenAt(cur),
+            inner = CodeMirror.innerMode(cm.getMode(), token.state);
+        return inner.state.context;
+    };
+    
     /**
      * Returns a list of availble tag hints if possible for the current
      * editor context. 
@@ -128,19 +144,24 @@ define(function (require, exports, module) {
      * 4. handleWideResults, a boolean (or undefined) that indicates whether
      *    to allow result string to stretch width of display.
      */
-    TagHints.prototype.getHints = function (implicitChar) {
+    TagHints.prototype.getHints = function () {
         var query,
-            result;
+            result,
+            context = this.getContext(),
+            parent = context ? context.tagName : "/root$";
 
         this.tagInfo = XMLUtils.getTagInfo(this.editor, this.editor.getCursorPos());
         if (this.tagInfo.tokenType === XMLUtils.TOKEN_TAG) {
             if (this.tagInfo.offset >= 0) {
                 this.updateExclusion();
                 query = this.tagInfo.token.string.trim();
-                query = query.replace('<', ''); // remove the leading <
+                query = query.replace("<", ""); // remove the leading <
                 result = $.map(tags, function (value, key) {
                     if (key.indexOf(query) === 0) {
-                        return key;
+                        var ctx = tags[key].context;
+                        if (!ctx || ctx.length === 0 || ctx.indexOf(parent) !== -1) {
+                            return key;
+                        }
                     }
                 }).sort();
                 
@@ -299,7 +320,7 @@ define(function (require, exports, module) {
      * the given editor context and, in case implicitChar is non-null,
      * whether it is appropriate to do so.
      */
-    AttrHints.prototype.hasHints = function (editor, implicitChar) {
+    AttrHints.prototype.hasHints = function (editor) {
         if (editor.getModeForSelection() === "xml") {
             this.editor = editor;
             this.tagInfo = XMLUtils.getTagInfo(this.editor, this.editor.getCursorPos());
@@ -408,17 +429,14 @@ define(function (require, exports, module) {
      * 4. handleWideResults, a boolean (or undefined) that indicates whether
      *    to allow result string to stretch width of display.
      */
-    AttrHints.prototype.getHints = function (implicitChar) {
+    AttrHints.prototype.getHints = function () {
         var cursor = this.editor.getCursorPos(),
             query = {queryStr: null},
-            tokenType,
-            offset,
             result = [];
  
         this.tagInfo = XMLUtils.getTagInfo(this.editor, cursor);
         
-        tokenType = this.tagInfo.tokenType;
-        offset = this.tagInfo.offset;
+        var tokenType = this.tagInfo.tokenType;
 
         if (tokenType === XMLUtils.TOKEN_VALUE || tokenType === XMLUtils.TOKEN_ATTR) {
             query.tag = this.tagInfo.tagName;
@@ -445,7 +463,7 @@ define(function (require, exports, module) {
                 
             } else if (tags && tags[tagName] && tags[tagName].attributes) {
                 unfiltered = tags[tagName].attributes.concat(this.globalAttributes);
-                hints = $.grep(unfiltered, function (attr, i) {
+                hints = $.grep(unfiltered, function (attr) {
                     return query.usedAttr.exclusionList.indexOf(attr) < 0;
                 });
             }
@@ -464,7 +482,7 @@ define(function (require, exports, module) {
                     handleWideResults: false
                 };
             } else if (hints instanceof Object && hints.hasOwnProperty("done")) { // Deferred hints
-                var deferred = $.Deferred();
+                var deferred = new $.Deferred();
                 hints.done(function (asyncHints) {
                     deferred.resolveWith(this, [{
                         hints: asyncHints,
@@ -501,7 +519,6 @@ define(function (require, exports, module) {
             charCount = 0,
             insertedName = false,
             replaceExistingOne = this.tagInfo.attrName,
-            endQuote = "",
             shouldReplace = true,
             textAfterCursor;
 
@@ -596,5 +613,77 @@ define(function (require, exports, module) {
         exports.tagHintProvider = tagHints;
         exports.attrHintProvider = attrHints;
     });
+
+    var FILE_NAME = "file.xml",
+        DELIMITER = ":",
+        LINE_NO_OFFSET = (FILE_NAME + DELIMITER).length;
+    
+    function parseErrors(errors) {
+        var parts = errors.split("\n"),
+            results = [],
+            current;
+        
+        /*
+         * Errors look like:
+         * "file.xml:line: message\nline-text\n.....^" where (.) is a space and the number of spaces is the column where the error begins
+         * -or-
+         * "file.xml:line: message\n"
+         * -or-
+         * "file.xml fails to validate" // this we just toss
+         */
+        
+        while(parts.length > 0) {
+            var onePart = parts.shift();
+            if (onePart.indexOf(FILE_NAME + DELIMITER) === 0) {
+                if (current) {
+                    results.push(current);
+                }
+
+                var delimOffset = onePart.indexOf(DELIMITER, LINE_NO_OFFSET);
+                
+                current = {
+                    message: onePart.substr(delimOffset + 1).trim(),
+                    pos: {
+                        ch: 0,
+                        line: parseInt(onePart.substring(LINE_NO_OFFSET, delimOffset)) - 1
+                    }
+                };
+            } else if (onePart.trim() === "^") {
+                current.pos.ch = onePart.indexOf("^");
+            }
+        }
+            
+        if (current) {
+            results.push(current);
+        }
+        
+        return results;
+    }
+    
+    /**
+     * Run JSLint on the current document. Reports results to the main UI. Displays
+     * a gold star when no errors are found.
+     */
+    function lintOneFile(text/*, fullPath*/) {
+
+        var options = {
+              xml: text,
+              schema: MucowSchema,
+              arguments: ["--noout", "--schema", "file.xsd", "file.xml"]
+        };
+
+        var xmllint = validateXML(options).trim();
+        
+        if (xmllint !== ("file.xml validates")) {
+            return { errors: parseErrors(xmllint) };
+        }
+        return null;
+    }
+    
+    // Register for JS files
+    CodeInspection.register("mucow", {
+        name: MUCOW_LINT,
+        scanFile: lintOneFile
+    });    
 
 });
