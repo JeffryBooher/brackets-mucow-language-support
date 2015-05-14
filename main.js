@@ -42,7 +42,13 @@ define(function (require, exports) {
         MucowAttributes             = require("text!MucowAttributes.json"),
         MucowSchema                 = require("text!mucow.xsd");
     
-    var MUCOW_LINT                  = "Mucow Grammar";
+    var CODE_INSPECTOR_WINDOW_TITLE = "Mucow Grammar";
+    
+    // XMLLint constants
+    var XSD_NAME  = "file.xsd",
+        FILE_NAME = "file.xml",
+        DELIMITER = ":",
+        LINE_NO_OFFSET = (FILE_NAME + DELIMITER).length;    
     
     var tags,
         attributes;
@@ -58,9 +64,7 @@ define(function (require, exports) {
     });
     
     
-    // Add Codehints
     
-
     /**
      * @constructor
      */
@@ -89,11 +93,6 @@ define(function (require, exports) {
      * @param {Editor} editor 
      * A non-null editor object for the active window.
      *
-     * @param {string} implicitChar 
-     * Either null, if the hinting request was explicit, or a single character
-     * that represents the last insertion and that indicates an implicit
-     * hinting request.
-     *
      * @return {boolean} 
      * Determines whether the current provider is able to provide hints for
      * the given editor context and, in case implicitChar is non- null,
@@ -110,11 +109,8 @@ define(function (require, exports) {
     };
       
     /**
-     * Retrieves the current context for tag names
-     * @param {Editor} editor 
-     * A non-null editor object for the active window.
-     *
-     * @return {context} // use context.tagName to determine the parent tag at the cursor
+     * Retrieves the current editor context 
+     * @return {CodeMirror.context=} // use context.tagName to determine the parent tag at the cursor
      * 
      */
     TagHints.prototype.getContext = function() {
@@ -310,11 +306,6 @@ define(function (require, exports) {
      * @param {Editor} editor 
      * A non-null editor object for the active window.
      *
-     * @param {string} implicitChar 
-     * Either null, if the hinting request was explicit, or a single character
-     * that represents the last insertion and that indicates an implicit
-     * hinting request.
-     *
      * @return {boolean} 
      * Determines whether the current provider is able to provide hints for
      * the given editor context and, in case implicitChar is non-null,
@@ -330,6 +321,17 @@ define(function (require, exports) {
         return false;
     };
     
+
+    /**
+     * Helper function that builds an exlusion list of already used attributes
+     * 
+     * @param {Editor} editor 
+     * A non-null editor object for the active window.
+     *
+     * @param {CodeMirror.pos} constPos 
+     * the current position
+     * @return {{tagName: string,  exclusionList: Array.string, shouldReplace: boolean}=}
+     */    
     AttrHints.prototype._getTagAttributes = function (editor, constPos) {
         var pos, ctx, ctxPrev, ctxNext, ctxTemp, tagName, exclusionList = [], shouldReplace;
 
@@ -598,27 +600,13 @@ define(function (require, exports) {
         return false;
     };
 
-    AppInit.appReady(function () {
-        // Parse JSON files
-        tags = JSON.parse(MucowTags);
-        attributes = JSON.parse(MucowAttributes);
-        
-        // Register code hint providers
-        var tagHints = new TagHints();
-        var attrHints = new AttrHints();
-        CodeHintManager.registerHintProvider(tagHints, ["mucow"], 0);
-        CodeHintManager.registerHintProvider(attrHints, ["mucow"], 0);
-    
-        // For unit testing
-        exports.tagHintProvider = tagHints;
-        exports.attrHintProvider = attrHints;
-    });
 
-    var FILE_NAME = "file.xml",
-        DELIMITER = ":",
-        LINE_NO_OFFSET = (FILE_NAME + DELIMITER).length;
-    
-    function parseErrors(errors) {
+    /**
+     * Parses the results from xmlLint for errors
+     * @param {!string} errors - newline delimeted string of errors
+     * @returns {Array.{pos: {line: number, ch: number}, message: string}}
+     */    
+    function _parseErrors(errors) {
         var parts = errors.split("\n"),
             results = [],
             current;
@@ -661,29 +649,49 @@ define(function (require, exports) {
     }
     
     /**
-     * Run JSLint on the current document. Reports results to the main UI. Displays
-     * a gold star when no errors are found.
+     * Run xmlLint on the current document and return the results to the caller
+     * @param {!string} text - document text to lint
+     * @param {!string} fullPath - pathname of the document being linted
+     * @returns {{errors: Array.{pos: {line: number, ch: number}, message: string}}}=
      */
     function lintOneFile(text/*, fullPath*/) {
 
         var options = {
               xml: text,
               schema: MucowSchema,
-              arguments: ["--noout", "--schema", "file.xsd", "file.xml"]
+              arguments: ["--noout", "--schema", XSD_NAME, FILE_NAME]
         };
 
         var xmllint = validateXML(options).trim();
         
-        if (xmllint !== ("file.xml validates")) {
-            return { errors: parseErrors(xmllint) };
+        if (xmllint !== (FILE_NAME + " validates")) {
+            return { errors: _parseErrors(xmllint) };
         }
         return null;
     }
     
-    // Register for JS files
+    // Register for mucow files for xml linting
     CodeInspection.register("mucow", {
-        name: MUCOW_LINT,
+        name: CODE_INSPECTOR_WINDOW_TITLE,
         scanFile: lintOneFile
     });    
+
+
+    // Register our app ready handler to setup code hints
+    AppInit.appReady(function () {
+        // Parse JSON files
+        tags = JSON.parse(MucowTags);
+        attributes = JSON.parse(MucowAttributes);
+        
+        // Register code hint providers
+        var tagHints = new TagHints();
+        var attrHints = new AttrHints();
+        CodeHintManager.registerHintProvider(tagHints, ["mucow"], 0);
+        CodeHintManager.registerHintProvider(attrHints, ["mucow"], 0);
+    
+        // For unit testing
+        exports.tagHintProvider = tagHints;
+        exports.attrHintProvider = attrHints;
+    });
 
 });
