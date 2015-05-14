@@ -69,22 +69,8 @@ define(function (require, exports) {
      * @constructor
      */
     function TagHints() {
-        this.exclusion = null;
     }
     
-    /**
-     * Check whether the exclusion is still the same as text after the cursor. 
-     * If not, reset it to null.
-     */
-    TagHints.prototype.updateExclusion = function () {
-        var textAfterCursor;
-        if (this.exclusion && this.tagInfo) {
-            textAfterCursor = this.tagInfo.tagName.substr(this.tagInfo.offset);
-            if (!CodeHintManager.hasValidExclusion(this.exclusion, textAfterCursor)) {
-                this.exclusion = null;
-            }
-        }
-    };
     
     /**
      * Determines whether tag hints are available in the current editor
@@ -149,7 +135,6 @@ define(function (require, exports) {
         this.tagInfo = XMLUtils.getTagInfo(this.editor, this.editor.getCursorPos());
         if (this.tagInfo.tokenType === XMLUtils.TOKEN_TAG) {
             if (this.tagInfo.offset >= 0) {
-                this.updateExclusion();
                 query = this.tagInfo.token.string.trim();
                 query = query.replace("<", ""); // remove the leading <
                 result = $.map(tags, function (value, key) {
@@ -190,25 +175,19 @@ define(function (require, exports) {
             charCount = 0;
 
         if (this.tagInfo.tokenType === XMLUtils.TOKEN_TAG) {
-            var textAfterCursor = this.tagInfo.token.string.substr(this.tagInfo.offset);
-            if (CodeHintManager.hasValidExclusion(this.exclusion, textAfterCursor)) {
-                charCount = this.tagInfo.offset;
-            } else {
-                charCount = this.tagInfo.token.string.length;
-            }
+            charCount = this.tagInfo.token.string.length;
         }
 
         end.line = start.line = cursor.line;
         start.ch = cursor.ch - this.tagInfo.offset;
         end.ch = start.ch + charCount;
 
-        if (this.exclusion || completion !== this.tagInfo.token.string) {
+        if (completion !== this.tagInfo.token.string) {
             if (start.ch !== end.ch) {
                 this.editor.document.replaceRange(completion, start, end);
             } else {
                 this.editor.document.replaceRange(completion, start);
             }
-            this.exclusion = null;
         }
         
         return false;
@@ -220,7 +199,6 @@ define(function (require, exports) {
     function AttrHints() {
         this.globalAttributes = this.readGlobalAttrHints();
         this.cachedHints = null;
-        this.exclusion = "";
     }
 
     /**
@@ -275,28 +253,23 @@ define(function (require, exports) {
     };
     
     /**
-     * Check whether the exclusion is still the same as text after the cursor. 
-     * If not, reset it to null.
+     * Helper function that determines if the values of an attribute should be sorted
+     * 
+     * @param {string} tagName 
+     * tag name
      *
-     * @param {boolean} attrNameOnly
-     * true to indicate that we update the exclusion only if the cursor is inside an attribute name context.
-     * Otherwise, we also update exclusion for attribute value context.
-     */
-    AttrHints.prototype.updateExclusion = function (attrNameOnly) {
-        if (this.exclusion && this.tagInfo) {
-            var tokenType = this.tagInfo.tokenType,
-                offset = this.tagInfo.offset,
-                textAfterCursor;
-            
-            if (tokenType === XMLUtils.TOKEN_VALUE) {
-                textAfterCursor = this.tagInfo.attrName.substr(offset);
-            } else if (!attrNameOnly && tokenType === XMLUtils.TOKEN_ATTR) {
-                textAfterCursor = this.tagInfo.attrName.substr(offset);
-            }
-            if (!CodeHintManager.hasValidExclusion(this.exclusion, textAfterCursor)) {
-                this.exclusion = null;
-            }
-        }
+     * @param {string} attrName 
+     * attribute name
+     *
+     * @return {boolean} true if the values are to be sorted, false if not
+     */    
+    AttrHints.prototype._shouldSortValues = function (tagName, attrName) {
+        var tagPlusAttr = tagName + "/" + attrName,
+            attrInfo = attributes[tagPlusAttr] || attributes[attrName];
+        
+        attrInfo = attributes[tagPlusAttr] || attributes[attrName];
+        
+        return (!attrInfo || !attrInfo.noSort);
     };
     
     /**
@@ -446,7 +419,7 @@ define(function (require, exports) {
             query.usedAttr = this._getTagAttributes(this.editor, cursor);
             query.queryStr = this.tagInfo.token.string.trim();
             if (tokenType === XMLUtils.TOKEN_VALUE) {
-                query.queryStr = query.queryStr.replace(/^\"|$\"/g, "");
+                query.queryStr = query.queryStr.replace(/\"|\<|\>|\\/g, "");
             }
         }
 
@@ -476,7 +449,13 @@ define(function (require, exports) {
                     if (item.indexOf(filter) === 0) {
                         return item;
                     }
-                }).sort(sortFunc);
+                });
+                
+                if (tokenType !== XMLUtils.TOKEN_VALUE || 
+                    this._shouldSortValues(tagName, attrName)) {
+                    result.sort(sortFunc);
+                }
+                
                 return {
                     hints: result,
                     match: query.queryStr,
@@ -521,42 +500,21 @@ define(function (require, exports) {
             charCount = 0,
             insertedName = false,
             replaceExistingOne = this.tagInfo.attrName,
-            shouldReplace = true,
-            textAfterCursor;
+            shouldReplace = true;
 
         if (tokenType === XMLUtils.TOKEN_VALUE) {
-            textAfterCursor = this.tagInfo.token.string.substr(offset);
-            if (CodeHintManager.hasValidExclusion(this.exclusion, textAfterCursor)) {
-                charCount = offset;
-                replaceExistingOne = false;
-            } else {
-                charCount = this.tagInfo.token.string.length;
-            }
+            charCount = this.tagInfo.token.string.length;
             // Append an equal sign and two double quotes if the current attr is not an empty attr
             // and then adjust cursor location before the last quote that we just inserted.
             if (completion === this.tagInfo.token.string) {
                 shouldReplace = false;
             } else {
-                var startChar = this.editor.document.getLine(cursor.line).substr(cursor.ch - offset, 1);
-                if (startChar === "\"") {
-                    completion += "\"";
-                }
-                charCount = this.tagInfo.token.string.length;
-                if (this.tagInfo.token.string.trim().length > 0) {
-                    offset = this.tagInfo.token.string.length;
-                } else {
-                    offset = 0;
-                }
+                // all attributes are quoted    
+                completion = "\"" + completion + "\"";
+                charCount = this.tagInfo.token.string.length; 
             }
         } else if (tokenType === XMLUtils.TOKEN_ATTR) {
-            textAfterCursor = this.tagInfo.attrName.substr(offset);
-            if (CodeHintManager.hasValidExclusion(this.exclusion, textAfterCursor)) {
-                charCount = offset;
-                // Set exclusion to null only after attribute value insertion,
-                // not after attribute name insertion since we need to keep it 
-                // for attribute value insertion.
-                this.exclusion = null;
-            } else if (replaceExistingOne) {
+            if (replaceExistingOne) {
                 charCount = this.tagInfo.attrName.length;
             } else {
                 this.tagInfo.token.string = this.tagInfo.token.string.trim();
