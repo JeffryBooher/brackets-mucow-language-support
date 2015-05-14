@@ -614,8 +614,13 @@ define(function (require, exports) {
      */
     function lintOneFile(text/*, fullPath*/) {
 
+        function encodeUtf8(s) {
+            return unescape(encodeURIComponent(s));
+        }
+
+        
         var options = {
-              xml: text,
+              xml: encodeUtf8(text),
               schema: MucowSchema,
               arguments: ["--noout", "--schema", XSD_NAME, FILE_NAME]
         };

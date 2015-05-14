@@ -12,6 +12,14 @@
                 <xs:attribute name="defaultValue" type="xs:string" use="required" />
                 <xs:attribute name="label" type="xs:string" use="optional" />
                 <xs:attribute name="toolTip" type="xs:string" use="optional" />
+                <xs:attribute name="paramEncoding" use="optional">
+                  <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                      <xs:enumeration value="URIComponent"/>
+                      <xs:enumeration value="spaceToPlus"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                </xs:attribute>
                 <xs:attribute name="multiline" type="xs:boolean" use="optional" />
                 <xs:attribute name="defaultIllegalForOutput" type="xs:boolean" use="optional" />
               </xs:complexType>
@@ -30,6 +38,7 @@
                       </xs:all>
                       <xs:attribute name="name" type="xs:string" use="required" />
                       <xs:attribute name="label" type="xs:string" use="optional" />
+                      <xs:attribute name="disableOptions" type="xs:string" use="optional" />
                     </xs:complexType>
                   </xs:element>
                 </xs:sequence>
@@ -47,7 +56,7 @@
                 <xs:attribute name="toolTip" type="xs:string" use="optional" />
                 <xs:attribute name="urlStart" type="xs:anyURI" use="optional" />
                 <xs:attribute name="currentPageOrURL" type="xs:boolean" use="optional" />
-                <xs:attribute name="dummyDomainPrefix" type="xs:time" use="optional" />
+                <xs:attribute name="dummyDomainPrefix" type="xs:anyURI" use="optional" />
                 <xs:attribute name="defaultIllegalForOutput" type="xs:boolean" use="optional" />
               </xs:complexType>
             </xs:element>
@@ -88,9 +97,9 @@
                 <xs:attribute name="max" type="xs:decimal" use="required" />
                 <xs:attribute name="label" type="xs:string" use="optional" />
                 <xs:attribute name="toolTip" type="xs:string" use="optional" />
-                <xs:attribute name="step" type="xs:int" use="optional" default="1"/>
-                <xs:attribute name="snap" type="xs:int" use="optional" default="1"/>
-                <xs:attribute name="digitsPrecision" type="xs:int" use="optional" />
+                <xs:attribute name="step" type="xs:decimal" use="optional" default="1"/>
+                <xs:attribute name="snap" type="xs:decimal" use="optional" default="1"/>
+                <xs:attribute name="digitsPrecision" type="xs:decimal" use="optional" />
               </xs:complexType>
             </xs:element>
             <xs:element name="builtIn">
@@ -109,6 +118,8 @@
                   </xs:simpleType>
                 </xs:attribute>
                 <xs:attribute name="supportedLocales" type="xs:string" use="optional"/>
+                <xs:attribute name="supportedLanguages" type="xs:string" use="optional"/>
+                <xs:attribute name="variant" type="xs:string" use="optional"/>
               </xs:complexType>
             </xs:element>
             <xs:element name="info">
@@ -196,30 +207,21 @@
         <xs:element name="pageItemPosterHTML" type="xs:string" minOccurs="0" maxOccurs="1" />      
       </xs:choice>
       <xs:attribute name="name" type="xs:string" use="required"/>
-      <xs:attribute name="formatNumber" type="xs:int" use="required" fixed="3" />
+      <xs:attribute name="formatNumber" use="required" >
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="1"/>
+            <xs:enumeration value="2"/>
+            <xs:enumeration value="3"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
       <xs:attribute name="localization" use="required">
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:enumeration value="none"/>
-            <xs:enumeration value="en_US"/>
-            <xs:enumeration value="en_GB"/>
-            <xs:enumeration value="es_ES"/>
-            <xs:enumeration value="nl_NL"/>
-            <xs:enumeration value="fr_FR"/>
-            <xs:enumeration value="de_DE"/>
-            <xs:enumeration value="sv_SE"/>
-            <xs:enumeration value="ja_JP"/>
-            <xs:enumeration value="it_IT"/>
-            <xs:enumeration value="da_DK"/>
-            <xs:enumeration value="nb_NO"/>
-            <xs:enumeration value="zh_TW"/>
-            <xs:enumeration value="ko_KR"/>
-            <xs:enumeration value="tr_TR"/>
-            <xs:enumeration value="pt_BR"/>
-            <xs:enumeration value="fi_FI"/>
-            <xs:enumeration value="cs_CZ"/>
-            <xs:enumeration value="pl_PL"/>
-            <xs:enumeration value="ru_RU"/>
+            <xs:enumeration value="stringTable"/>
+            <xs:enumeration value="builtIn"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>
@@ -233,6 +235,7 @@
       <xs:attribute name="maxWidth" type="xs:int" use="optional" />
       <xs:attribute name="maxHeight" type="xs:int" use="optional" />
       <xs:attribute name="isResizable" type="xs:boolean" use="optional" />
+      <xs:attribute name="onlineHelpID" type="xs:string" use="optional" />
     </xs:complexType>
   </xs:element>
 </xs:schema>

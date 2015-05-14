@@ -4,7 +4,8 @@
         "context": [
             "HTMLWidget", 
             "value", 
-            "trueVal"
+            "trueVal",
+            "falseVal"
         ]
     },
     "bodyEndHTML": {
@@ -12,7 +13,8 @@
         "context": [
             "HTMLWidget", 
             "value", 
-            "trueVal"
+            "trueVal",
+            "falseVal"
         ]
     },
     "bool": {
@@ -64,7 +66,8 @@
         "context": [
             "HTMLWidget", 
             "value", 
-            "trueVal"
+            "trueVal",
+            "falseVal"
         ]
     },
     "HTMLWidget": {
@@ -124,7 +127,8 @@
         "context": [
             "HTMLWidget", 
             "value", 
-            "trueVal"
+            "trueVal",
+            "falseVal"
         ]
     },
     "pageItemPosterHTML": {
@@ -132,7 +136,8 @@
         "context": [
             "HTMLWidget", 
             "value", 
-            "trueVal"
+            "trueVal",
+            "falseVal"
         ]
     },
     "parameters": {
