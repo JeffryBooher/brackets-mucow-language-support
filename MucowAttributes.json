@@ -89,25 +89,7 @@
     "HTMLWidget/localization": {
         "attribOption": [
             "none",
-            "en_US",
-            "en_GB",
-            "es_ES",
-            "nl_NL",
-            "fr_FR",
-            "de_DE",
-            "sv_SE",
-            "ja_JP",
-            "it_IT",
-            "da_DK",
-            "nb_NO",
-            "zh_TW",
-            "ko_KR",
-            "tr_TR",
-            "pt_BR",
-            "fi_FI",
-            "cs_CZ",
-            "pl_PL",
-            "ru_RU"
+            "stringTable"
         ],
         "type": "string",
         "noSort": "true"
