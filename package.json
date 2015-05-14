@@ -1,10 +1,10 @@
 {
     "name": "jeffbooher.mucowlanguage",
-    "title": "Mucows Language Support",
-    "description": "Adds support for the MUSE Mucow widget markup",
-    "homepage": "https://github.com/JeffryBooher/brackets-mucow-language",
+    "title": "Mucow Language Support",
+    "description": "Adds support for MUSE widget markup",
+    "homepage": "https://github.com/JeffryBooher/brackets-mucow-language-support",
     "version": "0.3.0",
-    "author": "Jeffry Booher|jsbooher@adobe.com (http://www.facebook.com/JeffryBooher)",
+    "author": "JeffryBooher (@JeffryBooher)",
     "license": "MIT",
     "engines": {
         "brackets": ">=0.24.0"
