@@ -22,31 +22,37 @@
  */
 
 /*jslint vars: true, plusplus: true, devel: true, nomen: true, regexp: true, indent: 4, maxerr: 50 */
-/*global define, brackets, window, $, Mustache, navigator */
+/*global define, brackets, $, validateXML, CodeMirror, console */
 
-define(function (require, exports, module) {
+define(function (require, exports) {
     "use strict";
+    
+    // xmllint is a non-module require
+    require("thirdparty/xmllint");    
     
     // Brackets modules
     var AppInit                     = brackets.getModule("utils/AppInit"),
-        PreferencesManager          = brackets.getModule("preferences/PreferencesManager"),
-        ExtensionUtils              = brackets.getModule("utils/ExtensionUtils"),
         LanguageManager             = brackets.getModule("language/LanguageManager"),
         XMLUtils                    = brackets.getModule("language/XMLUtils"),
         TokenUtils                  = brackets.getModule("utils/TokenUtils"),
         CodeHintManager             = brackets.getModule("editor/CodeHintManager"),
-        MucowTags                   = require("text!MucowTags.json"),
+        CodeInspection              = brackets.getModule("language/CodeInspection");
+    
+    var MucowTags                   = require("text!MucowTags.json"),
         MucowAttributes             = require("text!MucowAttributes.json"),
-        cachedAttributes            = {},
-        tags,
+        MucowSchema                 = require("text!mucow.xsd");
+    
+    var CODE_INSPECTOR_WINDOW_TITLE = "Mucow Grammar";
+    
+    // XMLLint constants
+    var XSD_NAME  = "file.xsd",
+        FILE_NAME = "file.xml",
+        DELIMITER = ":",
+        LINE_NO_OFFSET = (FILE_NAME + DELIMITER).length;    
+    
+    var tags,
         attributes;
 
-
-    // TODO: This may improve matching heuristics
-    var stringMatcherOptions = {
-        preferPrefixMatches: true
-    };
-    
     // Regex to find whitespace.
     var regexWhitespace = /^\s+$/;
 
@@ -58,29 +64,13 @@ define(function (require, exports, module) {
     });
     
     
-    // Add Codehints
     
-
     /**
      * @constructor
      */
     function TagHints() {
-        this.exclusion = null;
     }
     
-    /**
-     * Check whether the exclusion is still the same as text after the cursor. 
-     * If not, reset it to null.
-     */
-    TagHints.prototype.updateExclusion = function () {
-        var textAfterCursor;
-        if (this.exclusion && this.tagInfo) {
-            textAfterCursor = this.tagInfo.tagName.substr(this.tagInfo.offset);
-            if (!CodeHintManager.hasValidExclusion(this.exclusion, textAfterCursor)) {
-                this.exclusion = null;
-            }
-        }
-    };
     
     /**
      * Determines whether tag hints are available in the current editor
@@ -89,17 +79,12 @@ define(function (require, exports, module) {
      * @param {Editor} editor 
      * A non-null editor object for the active window.
      *
-     * @param {string} implicitChar 
-     * Either null, if the hinting request was explicit, or a single character
-     * that represents the last insertion and that indicates an implicit
-     * hinting request.
-     *
      * @return {boolean} 
      * Determines whether the current provider is able to provide hints for
      * the given editor context and, in case implicitChar is non- null,
      * whether it is appropriate to do so.
      */
-    TagHints.prototype.hasHints = function (editor, implicitChar) {
+    TagHints.prototype.hasHints = function (editor) {
         if (editor.getModeForSelection() === "xml") {
             this.editor = editor;
             this.tagInfo = XMLUtils.getTagInfo(this.editor, this.editor.getCursorPos());
@@ -108,7 +93,20 @@ define(function (require, exports, module) {
         }
         return false;
     };
-       
+      
+    /**
+     * Retrieves the current editor context 
+     * @return {CodeMirror.context=} // use context.tagName to determine the parent tag at the cursor
+     * 
+     */
+    TagHints.prototype.getContext = function() {
+        var cm = this.editor._codeMirror,
+            cur = cm.getCursor(),
+            token = cm.getTokenAt(cur),
+            inner = CodeMirror.innerMode(cm.getMode(), token.state);
+        return inner.state.context;
+    };
+    
     /**
      * Returns a list of availble tag hints if possible for the current
      * editor context. 
@@ -128,19 +126,23 @@ define(function (require, exports, module) {
      * 4. handleWideResults, a boolean (or undefined) that indicates whether
      *    to allow result string to stretch width of display.
      */
-    TagHints.prototype.getHints = function (implicitChar) {
+    TagHints.prototype.getHints = function () {
         var query,
-            result;
+            result,
+            context = this.getContext(),
+            parent = context ? context.tagName : "/root$";
 
         this.tagInfo = XMLUtils.getTagInfo(this.editor, this.editor.getCursorPos());
         if (this.tagInfo.tokenType === XMLUtils.TOKEN_TAG) {
             if (this.tagInfo.offset >= 0) {
-                this.updateExclusion();
                 query = this.tagInfo.token.string.trim();
-                query = query.replace('<', ''); // remove the leading <
+                query = query.replace("<", ""); // remove the leading <
                 result = $.map(tags, function (value, key) {
                     if (key.indexOf(query) === 0) {
-                        return key;
+                        var ctx = tags[key].context;
+                        if (!ctx || ctx.length === 0 || ctx.indexOf(parent) !== -1) {
+                            return key;
+                        }
                     }
                 }).sort();
                 
@@ -173,25 +175,19 @@ define(function (require, exports, module) {
             charCount = 0;
 
         if (this.tagInfo.tokenType === XMLUtils.TOKEN_TAG) {
-            var textAfterCursor = this.tagInfo.token.string.substr(this.tagInfo.offset);
-            if (CodeHintManager.hasValidExclusion(this.exclusion, textAfterCursor)) {
-                charCount = this.tagInfo.offset;
-            } else {
-                charCount = this.tagInfo.token.string.length;
-            }
+            charCount = this.tagInfo.token.string.length;
         }
 
         end.line = start.line = cursor.line;
         start.ch = cursor.ch - this.tagInfo.offset;
         end.ch = start.ch + charCount;
 
-        if (this.exclusion || completion !== this.tagInfo.token.string) {
+        if (completion !== this.tagInfo.token.string) {
             if (start.ch !== end.ch) {
                 this.editor.document.replaceRange(completion, start, end);
             } else {
                 this.editor.document.replaceRange(completion, start);
             }
-            this.exclusion = null;
         }
         
         return false;
@@ -203,7 +199,6 @@ define(function (require, exports, module) {
     function AttrHints() {
         this.globalAttributes = this.readGlobalAttrHints();
         this.cachedHints = null;
-        this.exclusion = "";
     }
 
     /**
@@ -258,28 +253,23 @@ define(function (require, exports, module) {
     };
     
     /**
-     * Check whether the exclusion is still the same as text after the cursor. 
-     * If not, reset it to null.
+     * Helper function that determines if the values of an attribute should be sorted
+     * 
+     * @param {string} tagName 
+     * tag name
      *
-     * @param {boolean} attrNameOnly
-     * true to indicate that we update the exclusion only if the cursor is inside an attribute name context.
-     * Otherwise, we also update exclusion for attribute value context.
-     */
-    AttrHints.prototype.updateExclusion = function (attrNameOnly) {
-        if (this.exclusion && this.tagInfo) {
-            var tokenType = this.tagInfo.tokenType,
-                offset = this.tagInfo.offset,
-                textAfterCursor;
-            
-            if (tokenType === XMLUtils.TOKEN_VALUE) {
-                textAfterCursor = this.tagInfo.attrName.substr(offset);
-            } else if (!attrNameOnly && tokenType === XMLUtils.TOKEN_ATTR) {
-                textAfterCursor = this.tagInfo.attrName.substr(offset);
-            }
-            if (!CodeHintManager.hasValidExclusion(this.exclusion, textAfterCursor)) {
-                this.exclusion = null;
-            }
-        }
+     * @param {string} attrName 
+     * attribute name
+     *
+     * @return {boolean} true if the values are to be sorted, false if not
+     */    
+    AttrHints.prototype._shouldSortValues = function (tagName, attrName) {
+        var tagPlusAttr = tagName + "/" + attrName,
+            attrInfo = attributes[tagPlusAttr] || attributes[attrName];
+        
+        attrInfo = attributes[tagPlusAttr] || attributes[attrName];
+        
+        return (!attrInfo || !attrInfo.noSort);
     };
     
     /**
@@ -289,17 +279,12 @@ define(function (require, exports, module) {
      * @param {Editor} editor 
      * A non-null editor object for the active window.
      *
-     * @param {string} implicitChar 
-     * Either null, if the hinting request was explicit, or a single character
-     * that represents the last insertion and that indicates an implicit
-     * hinting request.
-     *
      * @return {boolean} 
      * Determines whether the current provider is able to provide hints for
      * the given editor context and, in case implicitChar is non-null,
      * whether it is appropriate to do so.
      */
-    AttrHints.prototype.hasHints = function (editor, implicitChar) {
+    AttrHints.prototype.hasHints = function (editor) {
         if (editor.getModeForSelection() === "xml") {
             this.editor = editor;
             this.tagInfo = XMLUtils.getTagInfo(this.editor, this.editor.getCursorPos());
@@ -309,6 +294,17 @@ define(function (require, exports, module) {
         return false;
     };
     
+
+    /**
+     * Helper function that builds an exlusion list of already used attributes
+     * 
+     * @param {Editor} editor 
+     * A non-null editor object for the active window.
+     *
+     * @param {CodeMirror.pos} constPos 
+     * the current position
+     * @return {{tagName: string,  exclusionList: Array.string, shouldReplace: boolean}=}
+     */    
     AttrHints.prototype._getTagAttributes = function (editor, constPos) {
         var pos, ctx, ctxPrev, ctxNext, ctxTemp, tagName, exclusionList = [], shouldReplace;
 
@@ -408,17 +404,14 @@ define(function (require, exports, module) {
      * 4. handleWideResults, a boolean (or undefined) that indicates whether
      *    to allow result string to stretch width of display.
      */
-    AttrHints.prototype.getHints = function (implicitChar) {
+    AttrHints.prototype.getHints = function () {
         var cursor = this.editor.getCursorPos(),
             query = {queryStr: null},
-            tokenType,
-            offset,
             result = [];
  
         this.tagInfo = XMLUtils.getTagInfo(this.editor, cursor);
         
-        tokenType = this.tagInfo.tokenType;
-        offset = this.tagInfo.offset;
+        var tokenType = this.tagInfo.tokenType;
 
         if (tokenType === XMLUtils.TOKEN_VALUE || tokenType === XMLUtils.TOKEN_ATTR) {
             query.tag = this.tagInfo.tagName;
@@ -426,7 +419,7 @@ define(function (require, exports, module) {
             query.usedAttr = this._getTagAttributes(this.editor, cursor);
             query.queryStr = this.tagInfo.token.string.trim();
             if (tokenType === XMLUtils.TOKEN_VALUE) {
-                query.queryStr = query.queryStr.replace(/^\"|$\"/g, "");
+                query.queryStr = query.queryStr.replace(/\"|\<|\>|\\/g, "");
             }
         }
 
@@ -445,7 +438,7 @@ define(function (require, exports, module) {
                 
             } else if (tags && tags[tagName] && tags[tagName].attributes) {
                 unfiltered = tags[tagName].attributes.concat(this.globalAttributes);
-                hints = $.grep(unfiltered, function (attr, i) {
+                hints = $.grep(unfiltered, function (attr) {
                     return query.usedAttr.exclusionList.indexOf(attr) < 0;
                 });
             }
@@ -456,7 +449,13 @@ define(function (require, exports, module) {
                     if (item.indexOf(filter) === 0) {
                         return item;
                     }
-                }).sort(sortFunc);
+                });
+                
+                if (tokenType !== XMLUtils.TOKEN_VALUE || 
+                    this._shouldSortValues(tagName, attrName)) {
+                    result.sort(sortFunc);
+                }
+                
                 return {
                     hints: result,
                     match: query.queryStr,
@@ -464,7 +463,7 @@ define(function (require, exports, module) {
                     handleWideResults: false
                 };
             } else if (hints instanceof Object && hints.hasOwnProperty("done")) { // Deferred hints
-                var deferred = $.Deferred();
+                var deferred = new $.Deferred();
                 hints.done(function (asyncHints) {
                     deferred.resolveWith(this, [{
                         hints: asyncHints,
@@ -501,43 +500,21 @@ define(function (require, exports, module) {
             charCount = 0,
             insertedName = false,
             replaceExistingOne = this.tagInfo.attrName,
-            endQuote = "",
-            shouldReplace = true,
-            textAfterCursor;
+            shouldReplace = true;
 
         if (tokenType === XMLUtils.TOKEN_VALUE) {
-            textAfterCursor = this.tagInfo.token.string.substr(offset);
-            if (CodeHintManager.hasValidExclusion(this.exclusion, textAfterCursor)) {
-                charCount = offset;
-                replaceExistingOne = false;
-            } else {
-                charCount = this.tagInfo.token.string.length;
-            }
+            charCount = this.tagInfo.token.string.length;
             // Append an equal sign and two double quotes if the current attr is not an empty attr
             // and then adjust cursor location before the last quote that we just inserted.
             if (completion === this.tagInfo.token.string) {
                 shouldReplace = false;
             } else {
-                var startChar = this.editor.document.getLine(cursor.line).substr(cursor.ch - offset, 1);
-                if (startChar === "\"") {
-                    completion += "\"";
-                }
-                charCount = this.tagInfo.token.string.length;
-                if (this.tagInfo.token.string.trim().length > 0) {
-                    offset = this.tagInfo.token.string.length;
-                } else {
-                    offset = 0;
-                }
+                // all attributes are quoted    
+                completion = "\"" + completion + "\"";
+                charCount = this.tagInfo.token.string.length; 
             }
         } else if (tokenType === XMLUtils.TOKEN_ATTR) {
-            textAfterCursor = this.tagInfo.attrName.substr(offset);
-            if (CodeHintManager.hasValidExclusion(this.exclusion, textAfterCursor)) {
-                charCount = offset;
-                // Set exclusion to null only after attribute value insertion,
-                // not after attribute name insertion since we need to keep it 
-                // for attribute value insertion.
-                this.exclusion = null;
-            } else if (replaceExistingOne) {
+            if (replaceExistingOne) {
                 charCount = this.tagInfo.attrName.length;
             } else {
                 this.tagInfo.token.string = this.tagInfo.token.string.trim();
@@ -581,6 +558,84 @@ define(function (require, exports, module) {
         return false;
     };
 
+
+    /**
+     * Parses the results from xmlLint for errors
+     * @param {!string} errors - newline delimeted string of errors
+     * @returns {Array.{pos: {line: number, ch: number}, message: string}}
+     */    
+    function _parseErrors(errors) {
+        var parts = errors.split("\n"),
+            results = [],
+            current;
+        
+        /*
+         * Errors look like:
+         * "file.xml:line: message\nline-text\n.....^" where (.) is a space and the number of spaces is the column where the error begins
+         * -or-
+         * "file.xml:line: message\n"
+         * -or-
+         * "file.xml fails to validate" // this we just toss
+         */
+        
+        while(parts.length > 0) {
+            var onePart = parts.shift();
+            if (onePart.indexOf(FILE_NAME + DELIMITER) === 0) {
+                if (current) {
+                    results.push(current);
+                }
+
+                var delimOffset = onePart.indexOf(DELIMITER, LINE_NO_OFFSET);
+                
+                current = {
+                    message: onePart.substr(delimOffset + 1).trim(),
+                    pos: {
+                        ch: 0,
+                        line: parseInt(onePart.substring(LINE_NO_OFFSET, delimOffset)) - 1
+                    }
+                };
+            } else if (onePart.trim() === "^") {
+                current.pos.ch = onePart.indexOf("^");
+            }
+        }
+            
+        if (current) {
+            results.push(current);
+        }
+        
+        return results;
+    }
+    
+    /**
+     * Run xmlLint on the current document and return the results to the caller
+     * @param {!string} text - document text to lint
+     * @param {!string} fullPath - pathname of the document being linted
+     * @returns {{errors: Array.{pos: {line: number, ch: number}, message: string}}}=
+     */
+    function lintOneFile(text/*, fullPath*/) {
+
+        var options = {
+              xml: text,
+              schema: MucowSchema,
+              arguments: ["--noout", "--schema", XSD_NAME, FILE_NAME]
+        };
+
+        var xmllint = validateXML(options).trim();
+        
+        if (xmllint !== (FILE_NAME + " validates")) {
+            return { errors: _parseErrors(xmllint) };
+        }
+        return null;
+    }
+    
+    // Register for mucow files for xml linting
+    CodeInspection.register("mucow", {
+        name: CODE_INSPECTOR_WINDOW_TITLE,
+        scanFile: lintOneFile
+    });    
+
+
+    // Register our app ready handler to setup code hints
     AppInit.appReady(function () {
         // Parse JSON files
         tags = JSON.parse(MucowTags);
