@@ -78,6 +78,13 @@
                   </xs:element>
                   <xs:element name="falseVal" minOccurs="1">
                     <xs:complexType>
+                      <xs:all>
+                        <xs:element name="headHTML" type="xs:string" minOccurs="0" maxOccurs="1" />
+                        <xs:element name="bodyBeginHTML" type="xs:string" minOccurs="0" maxOccurs="1" />
+                        <xs:element name="pageItemHTML" type="xs:string" minOccurs="0" maxOccurs="1" />
+                        <xs:element name="bodyEndHTML" type="xs:string" minOccurs="0" maxOccurs="1" />
+                        <xs:element name="pageItemPosterHTML" type="xs:string" minOccurs="0" maxOccurs="1" />
+                      </xs:all>
                       <xs:attribute name="value" type="xs:string" use="required" />
                       <xs:attribute name="disableOptions" type="xs:string" use="optional" />
                     </xs:complexType>
@@ -99,7 +106,7 @@
                 <xs:attribute name="toolTip" type="xs:string" use="optional" />
                 <xs:attribute name="step" type="xs:decimal" use="optional" default="1"/>
                 <xs:attribute name="snap" type="xs:decimal" use="optional" default="1"/>
-                <xs:attribute name="digitsPrecision" type="xs:decimal" use="optional" />
+                <xs:attribute name="digitsPrecision" type="xs:int" use="optional" />
               </xs:complexType>
             </xs:element>
             <xs:element name="builtIn">
@@ -159,7 +166,7 @@
       </xs:element>
         <xs:element name="stringTable" maxOccurs="1">
               <xs:complexType>
-                <xs:all>
+                <xs:choice maxOccurs="unbounded">
                   <xs:element name="locale" minOccurs="1" >
                     <xs:complexType mixed="true">
                       <xs:sequence>
@@ -197,7 +204,7 @@
                       </xs:attribute>
                     </xs:complexType>
                   </xs:element>
-                </xs:all>
+                </xs:choice>
               </xs:complexType>
         </xs:element>
         <xs:element name="headHTML" type="xs:string" minOccurs="0" maxOccurs="1" />
