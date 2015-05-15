@@ -3,7 +3,7 @@
     "title": "Mucow Language Support",
     "description": "Adds support for MUSE widget markup",
     "homepage": "https://github.com/JeffryBooher/brackets-mucow-language-support",
-    "version": "0.3.5",
+    "version": "0.3.6",
     "author": "JeffryBooher (@JeffryBooher)",
     "license": "MIT",
     "engines": {
