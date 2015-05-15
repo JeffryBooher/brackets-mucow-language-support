@@ -152,6 +152,7 @@
                 <xs:attribute name="supportsNoneColor" type="xs:boolean" use="optional" />
                 <xs:attribute name="transparentOption" type="xs:string" use="optional" />
                 <xs:attribute name="toolTip" type="xs:string" use="optional" />
+                <xs:attribute name="labelOrder" type="xs:string" use="optional" />
               </xs:complexType>
             </xs:element>
             <xs:element name="file">
@@ -161,6 +162,7 @@
                 <xs:attribute name="filterLabel" type="xs:string" use="optional" />
                 <xs:attribute name="fileTypes" type="xs:string" use="optional" />
                 <xs:attribute name="fileRequiredForOutput" type="xs:boolean" use="optional" />
+                <xs:attribute name="toolTip" type="xs:string" use="optional" />
               </xs:complexType>
             </xs:element>
           </xs:choice>
