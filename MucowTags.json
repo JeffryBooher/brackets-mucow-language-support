@@ -40,7 +40,8 @@
             "defaultValue", 
             "name", 
             "rgbColor", 
-            "supportsNoneColor"
+            "supportsNoneColor",
+            "toolTip"
         ],
         "context": ["parameters"]    
     },
@@ -57,7 +58,8 @@
             "fileTypes", 
             "fileRequiredForOutput", 
             "label", 
-            "name"
+            "name",
+            "toolTip"
         ],
         "context": ["parameters"]    
     },
