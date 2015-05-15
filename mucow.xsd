@@ -150,6 +150,8 @@
                 <xs:attribute name="rgbColor" type="xs:boolean" use="optional" />
                 <xs:attribute name="formatHexColor" type="xs:boolean" use="optional" />
                 <xs:attribute name="supportsNoneColor" type="xs:boolean" use="optional" />
+                <xs:attribute name="transparentOption" type="xs:string" use="optional" />
+                <xs:attribute name="toolTip" type="xs:string" use="optional" />
               </xs:complexType>
             </xs:element>
             <xs:element name="file">
