@@ -22,7 +22,7 @@
  */
 
 /*jslint vars: true, plusplus: true, devel: true, nomen: true, regexp: true, indent: 4, maxerr: 50 */
-/*global define, brackets, $, validateXML, CodeMirror, console */
+/*global define, brackets, $, validateXML, CodeMirror, console, unescape */
 
 define(function (require, exports) {
     "use strict";
@@ -42,7 +42,7 @@ define(function (require, exports) {
         MucowAttributes             = require("text!MucowAttributes.json"),
         MucowSchema                 = require("text!mucow.xsd");
     
-    var CODE_INSPECTOR_WINDOW_TITLE = "Mucow Grammar";
+    var CODE_INSPECTOR_WINDOW_TITLE = "MuCow Grammar";
     
     // XMLLint constants
     var XSD_NAME  = "file.xsd",
@@ -58,7 +58,7 @@ define(function (require, exports) {
 
     // Add Language support for mucow
     LanguageManager.defineLanguage("mucow", {
-        name: "MUSE Widget Definition",
+        name: "MuCow",
         mode: "xml",
         fileExtensions: ["mucow"]
     });
